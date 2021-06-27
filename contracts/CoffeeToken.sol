@@ -4,19 +4,20 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
-
-contract CoffeeToken is ERC20('CafeSwap Token', 'BREW') {
+contract CoffeeToken is ERC20("CafeSwap Token", "BREW") {
     using SafeERC20 for IERC20;
     using SafeMath for uint256;
 
     address public governance;
+    address[] public listOfMinters;
+
     mapping(address => bool) public minters;
 
     uint256 public cap;
 
-    constructor(
-        uint256 _cap
-    ) public {
+    event MinterChanged(address indexed minter, bool role);
+
+    constructor(uint256 _cap) public {
         cap = _cap;
         governance = msg.sender;
     }
@@ -27,8 +28,15 @@ contract CoffeeToken is ERC20('CafeSwap Token', 'BREW') {
     }
 
     modifier onlyMinter() {
-        require(msg.sender == governance || minters[msg.sender], "!governance && !minter");
+        require(
+            msg.sender == governance || minters[msg.sender],
+            "!governance && !minter"
+        );
         _;
+    }
+
+    function getGetMinter(uint256 _pid) public view returns (address) {
+        return listOfMinters[_pid];
     }
 
     function mint(address _to, uint256 _amount) external onlyMinter {
@@ -40,7 +48,10 @@ contract CoffeeToken is ERC20('CafeSwap Token', 'BREW') {
     }
 
     function burnFrom(address _account, uint256 _amount) external {
-        uint256 decreasedAllowance = allowance(_account, msg.sender).sub(_amount, "ERC20: burn amount exceeds allowance");
+        uint256 decreasedAllowance = allowance(_account, msg.sender).sub(
+            _amount,
+            "ERC20: burn amount exceeds allowance"
+        );
         _approve(_account, msg.sender, decreasedAllowance);
         _burn(_account, _amount);
     }
@@ -51,10 +62,13 @@ contract CoffeeToken is ERC20('CafeSwap Token', 'BREW') {
 
     function addMinter(address _minter) external onlyGovernance {
         minters[_minter] = true;
+        listOfMinters.push(_minter);
+        emit MinterChanged(_minter, true);
     }
 
     function removeMinter(address _minter) external onlyGovernance {
         minters[_minter] = false;
+        emit MinterChanged(_minter, false);
     }
 
     function setCap(uint256 _cap) external onlyGovernance {
@@ -78,7 +92,10 @@ contract CoffeeToken is ERC20('CafeSwap Token', 'BREW') {
 
         if (from == address(0)) {
             // When minting tokens
-            require(totalSupply().add(amount) <= cap, "ERC20Capped: cap exceeded");
+            require(
+                totalSupply().add(amount) <= cap,
+                "ERC20Capped: cap exceeded"
+            );
         }
     }
 

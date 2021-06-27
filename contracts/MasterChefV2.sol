@@ -10,6 +10,9 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 
 import "./CoffeeToken.sol";
 
+interface ICafeSwapSafeTransfer {
+    function safeBrewTransfer(address _to, uint256 _amount) external;
+}
 // MasterChef is the master of Brew. He can make Brew and he is a fair guy.
 //
 // Note that it's ownable and the owner wields tremendous power. The ownership
@@ -67,6 +70,9 @@ contract MasterChefV2 is Ownable, ReentrancyGuard {
     // The block number when BREW mining starts.
     uint256 public startBlock;
 
+    // cafeSwapTransfer helper to be able to stake brew tokens
+    ICafeSwapSafeTransfer public cafeSwapTransfer;
+
     event Deposit(address indexed user, uint256 indexed pid, uint256 amount);
     event Withdraw(address indexed user, uint256 indexed pid, uint256 amount);
     event EmergencyWithdraw(
@@ -83,13 +89,15 @@ contract MasterChefV2 is Ownable, ReentrancyGuard {
         address _devaddr,
         address _feeAddress,
         uint256 _brewPerBlock,
-        uint256 _startBlock
+        uint256 _startBlock,
+        ICafeSwapSafeTransfer _cafeSwapTransfer
     ) public {
         brew = _brew;
         devaddr = _devaddr;
         feeAddress = _feeAddress;
         brewPerBlock = _brewPerBlock;
         startBlock = _startBlock;
+        cafeSwapTransfer = _cafeSwapTransfer;
     }
 
     modifier nonDuplicated(IERC20 _lpToken) {
@@ -212,7 +220,7 @@ contract MasterChefV2 is Ownable, ReentrancyGuard {
             );
         brew.mint(devaddr, brewReward.div(10));
         brewReward = brewReward.sub(brewReward.div(10));
-        brew.mint(address(this), brewReward);
+        brew.mint(address(cafeSwapTransfer), brewReward);
         pool.accBrewPerShare = pool.accBrewPerShare.add(
             brewReward.mul(1e12).div(lpSupply)
         );
@@ -283,16 +291,8 @@ contract MasterChefV2 is Ownable, ReentrancyGuard {
         emit EmergencyWithdraw(msg.sender, _pid, amount);
     }
 
-    // Safe brew transfer function, just in case if rounding error causes pool to not have enough BREWs.
     function safeBrewTransfer(address _to, uint256 _amount) internal {
-        uint256 brewBal = brew.balanceOf(address(this));
-        bool transferSuccess = false;
-        if (_amount > brewBal) {
-            transferSuccess = brew.transfer(_to, brewBal);
-        } else {
-            transferSuccess = brew.transfer(_to, _amount);
-        }
-        require(transferSuccess, "safeBrewTransfer: transfer failed");
+        cafeSwapTransfer.safeBrewTransfer(_to, _amount);
     }
 
     // Update dev address by the previous dev.
